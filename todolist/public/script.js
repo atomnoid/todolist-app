@@ -1,16 +1,41 @@
-// Todo List Application JavaScript
+// Enhanced Todo List Application with Backend Integration
 class TodoApp {
     constructor() {
-        this.todos = JSON.parse(localStorage.getItem('todos')) || [];
+        this.currentUser = null;
+        this.todos = [];
         this.currentFilter = 'all';
         this.editingId = null;
+        this.isAuthenticated = false;
         
         this.initializeElements();
         this.bindEvents();
-        this.render();
+        this.initializeTheme();
+        this.checkAuthStatus();
     }
     
     initializeElements() {
+        // Auth elements
+        this.authSection = document.getElementById('authSection');
+        this.userSection = document.getElementById('userSection');
+        this.mainContent = document.getElementById('mainContent');
+        this.authTabs = document.querySelectorAll('.auth-tab');
+        this.loginForm = document.getElementById('loginForm');
+        this.registerForm = document.getElementById('registerForm');
+        this.loginEmail = document.getElementById('loginEmail');
+        this.loginPassword = document.getElementById('loginPassword');
+        this.registerName = document.getElementById('registerName');
+        this.registerEmail = document.getElementById('registerEmail');
+        this.registerPassword = document.getElementById('registerPassword');
+        this.userName = document.getElementById('userName');
+        this.userEmail = document.getElementById('userEmail');
+        this.profileBtn = document.getElementById('profileBtn');
+        this.logoutBtn = document.getElementById('logoutBtn');
+        
+        // Theme elements
+        this.themeToggle = document.getElementById('themeToggle');
+        this.themeIcon = document.getElementById('themeIcon');
+        
+        // Todo elements
         this.todoForm = document.getElementById('todoForm');
         this.todoInput = document.getElementById('todoInput');
         this.todoList = document.getElementById('todoList');
@@ -21,7 +46,35 @@ class TodoApp {
     }
     
     bindEvents() {
-        // Form submission
+        // Auth tab switching
+        this.authTabs.forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                this.switchAuthTab(e.target.dataset.tab);
+            });
+        });
+        
+        // Auth forms
+        this.loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handleLogin();
+        });
+        
+        this.registerForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handleRegister();
+        });
+        
+        // User actions
+        this.logoutBtn.addEventListener('click', () => {
+            this.handleLogout();
+        });
+        
+        // Theme toggle
+        this.themeToggle.addEventListener('click', () => {
+            this.toggleTheme();
+        });
+        
+        // Todo form
         this.todoForm.addEventListener('submit', (e) => {
             e.preventDefault();
             this.addTodo();
@@ -47,37 +100,222 @@ class TodoApp {
         });
     }
     
-    addTodo() {
-        const text = this.todoInput.value.trim();
-        if (!text) return;
-        
-        const todo = {
-            id: Date.now().toString(),
-            text: text,
-            completed: false,
-            createdAt: new Date().toISOString()
-        };
-        
-        this.todos.unshift(todo);
-        this.todoInput.value = '';
-        this.saveTodos();
-        this.render();
-        
-        // Focus back to input
-        this.todoInput.focus();
+    initializeTheme() {
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        this.setTheme(savedTheme);
     }
     
-    toggleTodo(id) {
-        const todo = this.todos.find(t => t.id === id);
-        if (todo) {
-            todo.completed = !todo.completed;
-            this.saveTodos();
-            this.render();
+    toggleTheme() {
+        const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+        this.setTheme(newTheme);
+    }
+    
+    setTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('theme', theme);
+        
+        // Update theme icon
+        if (this.themeIcon) {
+            this.themeIcon.className = theme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+        }
+        
+        // Add transition effect
+        document.body.style.transition = 'all 0.3s ease';
+        setTimeout(() => {
+            document.body.style.transition = '';
+        }, 300);
+    }
+    
+    async checkAuthStatus() {
+        try {
+            const token = localStorage.getItem('authToken');
+            if (token) {
+                const response = await apiService.getProfile();
+                if (response.success) {
+                    this.currentUser = response.data.user;
+                    this.isAuthenticated = true;
+                    this.showAuthenticatedUI();
+                    await this.loadTodos();
+                } else {
+                    this.showAuthUI();
+                }
+            } else {
+                this.showAuthUI();
+            }
+        } catch (error) {
+            console.error('Auth check error:', error);
+            this.showAuthUI();
         }
     }
     
-    editTodo(id) {
-        const todo = this.todos.find(t => t.id === id);
+    showAuthUI() {
+        this.authSection.style.display = 'flex';
+        this.userSection.style.display = 'none';
+        this.mainContent.style.display = 'none';
+        this.isAuthenticated = false;
+        this.currentUser = null;
+    }
+    
+    showAuthenticatedUI() {
+        this.authSection.style.display = 'none';
+        this.userSection.style.display = 'block';
+        this.mainContent.style.display = 'block';
+        this.isAuthenticated = true;
+        
+        // Update user info
+        this.userName.textContent = this.currentUser.name;
+        this.userEmail.textContent = this.currentUser.email;
+    }
+    
+    switchAuthTab(tab) {
+        this.authTabs.forEach(t => t.classList.remove('active'));
+        document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+        
+        document.querySelectorAll('.auth-form').forEach(form => {
+            form.classList.remove('active');
+        });
+        
+        if (tab === 'login') {
+            this.loginForm.classList.add('active');
+        } else {
+            this.registerForm.classList.add('active');
+        }
+    }
+    
+    async handleLogin() {
+        const email = this.loginEmail.value.trim();
+        const password = this.loginPassword.value;
+        
+        if (!email || !password) {
+            this.showMessage('Please fill in all fields', 'error');
+            return;
+        }
+        
+        try {
+            this.setLoading(this.loginForm, true);
+            const response = await apiService.login({ email, password });
+            
+            if (response.success) {
+                this.currentUser = response.data.user;
+                this.isAuthenticated = true;
+                this.showAuthenticatedUI();
+                await this.loadTodos();
+                this.showMessage('Login successful!', 'success');
+            }
+        } catch (error) {
+            this.showMessage(error.message || 'Login failed', 'error');
+        } finally {
+            this.setLoading(this.loginForm, false);
+        }
+    }
+    
+    async handleRegister() {
+        const name = this.registerName.value.trim();
+        const email = this.registerEmail.value.trim();
+        const password = this.registerPassword.value;
+        
+        console.log('Register attempt:', { name, email, password: password ? '***' : 'empty' });
+        
+        if (!name || !email || !password) {
+            this.showMessage('Please fill in all fields', 'error');
+            return;
+        }
+        
+        if (password.length < 6) {
+            this.showMessage('Password must be at least 6 characters', 'error');
+            return;
+        }
+        
+        try {
+            this.setLoading(this.registerForm, true);
+            console.log('Calling API service register...');
+            const response = await apiService.register({ name, email, password });
+            console.log('Register response:', response);
+            
+            if (response.success) {
+                this.currentUser = response.data.user;
+                this.isAuthenticated = true;
+                this.showAuthenticatedUI();
+                await this.loadTodos();
+                this.showMessage('Registration successful!', 'success');
+                
+                // Clear form
+                this.registerName.value = '';
+                this.registerEmail.value = '';
+                this.registerPassword.value = '';
+            }
+        } catch (error) {
+            console.error('Register error:', error);
+            this.showMessage(error.message || 'Registration failed', 'error');
+        } finally {
+            this.setLoading(this.registerForm, false);
+        }
+    }
+    
+    async handleLogout() {
+        try {
+            await apiService.logout();
+            this.showAuthUI();
+            this.todos = [];
+            this.render();
+            this.showMessage('Logged out successfully', 'success');
+        } catch (error) {
+            console.error('Logout error:', error);
+        }
+    }
+    
+    async loadTodos() {
+        try {
+            const response = await apiService.getTasks({
+                status: this.currentFilter,
+                limit: 100
+            });
+            
+            if (response.success) {
+                this.todos = response.data.tasks;
+                this.render();
+            }
+        } catch (error) {
+            console.error('Load todos error:', error);
+            this.showMessage('Failed to load tasks', 'error');
+        }
+    }
+    
+    async addTodo() {
+        const text = this.todoInput.value.trim();
+        if (!text) return;
+        
+        try {
+            const response = await apiService.createTask({
+                title: text,
+                description: '',
+                priority: 'medium'
+            });
+            
+            if (response.success) {
+                this.todoInput.value = '';
+                await this.loadTodos();
+                this.todoInput.focus();
+            }
+        } catch (error) {
+            this.showMessage(error.message || 'Failed to create task', 'error');
+        }
+    }
+    
+    async toggleTodo(id) {
+        try {
+            const response = await apiService.toggleTask(id);
+            if (response.success) {
+                await this.loadTodos();
+            }
+        } catch (error) {
+            this.showMessage(error.message || 'Failed to update task', 'error');
+        }
+    }
+    
+    async editTodo(id) {
+        const todo = this.todos.find(t => t._id === id);
         if (!todo) return;
         
         this.editingId = id;
@@ -87,7 +325,7 @@ class TodoApp {
         // Create input field
         const input = document.createElement('input');
         input.type = 'text';
-        input.value = todo.text;
+        input.value = todo.title;
         input.className = 'edit-input';
         input.style.cssText = `
             flex: 1;
@@ -107,11 +345,15 @@ class TodoApp {
         input.select();
         
         // Handle save/cancel
-        const saveEdit = () => {
+        const saveEdit = async () => {
             const newText = input.value.trim();
-            if (newText && newText !== todo.text) {
-                todo.text = newText;
-                this.saveTodos();
+            if (newText && newText !== todo.title) {
+                try {
+                    await apiService.updateTask(id, { title: newText });
+                    await this.loadTodos();
+                } catch (error) {
+                    this.showMessage(error.message || 'Failed to update task', 'error');
+                }
             }
             this.cancelEdit(id);
         };
@@ -142,19 +384,22 @@ class TodoApp {
         }
     }
     
-    deleteTodo(id) {
-        const todoItem = document.querySelector(`[data-id="${id}"]`);
-        if (todoItem) {
-            todoItem.classList.add('removing');
-            setTimeout(() => {
-                this.todos = this.todos.filter(t => t.id !== id);
-                this.saveTodos();
-                this.render();
-            }, 300);
+    async deleteTodo(id) {
+        if (!confirm('Are you sure you want to delete this task?')) {
+            return;
+        }
+        
+        try {
+            const response = await apiService.deleteTask(id);
+            if (response.success) {
+                await this.loadTodos();
+            }
+        } catch (error) {
+            this.showMessage(error.message || 'Failed to delete task', 'error');
         }
     }
     
-    setFilter(filter) {
+    async setFilter(filter) {
         this.currentFilter = filter;
         
         // Update active filter button
@@ -165,13 +410,25 @@ class TodoApp {
             }
         });
         
-        this.render();
+        await this.loadTodos();
     }
     
-    clearCompleted() {
-        this.todos = this.todos.filter(todo => !todo.completed);
-        this.saveTodos();
-        this.render();
+    async clearCompleted() {
+        if (!confirm('Are you sure you want to clear all completed tasks?')) {
+            return;
+        }
+        
+        try {
+            const completedTasks = this.todos.filter(todo => todo.completed);
+            const taskIds = completedTasks.map(todo => todo._id);
+            
+            if (taskIds.length > 0) {
+                await apiService.bulkDeleteTasks(taskIds);
+                await this.loadTodos();
+            }
+        } catch (error) {
+            this.showMessage(error.message || 'Failed to clear completed tasks', 'error');
+        }
     }
     
     getFilteredTodos() {
@@ -235,16 +492,16 @@ class TodoApp {
     createTodoElement(todo) {
         const todoDiv = document.createElement('div');
         todoDiv.className = `todo-item ${todo.completed ? 'completed' : ''}`;
-        todoDiv.dataset.id = todo.id;
+        todoDiv.dataset.id = todo._id;
         
         todoDiv.innerHTML = `
-            <div class="todo-checkbox ${todo.completed ? 'checked' : ''}" onclick="todoApp.toggleTodo('${todo.id}')"></div>
-            <div class="todo-text">${this.escapeHtml(todo.text)}</div>
+            <div class="todo-checkbox ${todo.completed ? 'checked' : ''}" onclick="todoApp.toggleTodo('${todo._id}')"></div>
+            <div class="todo-text">${this.escapeHtml(todo.title)}</div>
             <div class="todo-actions">
-                <button class="todo-btn edit-btn" onclick="todoApp.editTodo('${todo.id}')" title="Edit">
+                <button class="todo-btn edit-btn" onclick="todoApp.editTodo('${todo._id}')" title="Edit">
                     <i class="fas fa-edit"></i>
                 </button>
-                <button class="todo-btn delete-btn" onclick="todoApp.deleteTodo('${todo.id}')" title="Delete">
+                <button class="todo-btn delete-btn" onclick="todoApp.deleteTodo('${todo._id}')" title="Delete">
                     <i class="fas fa-trash"></i>
                 </button>
             </div>
@@ -259,34 +516,41 @@ class TodoApp {
         return div.innerHTML;
     }
     
-    saveTodos() {
-        localStorage.setItem('todos', JSON.stringify(this.todos));
-    }
-    
-    // Public methods for external access
-    getTodos() {
-        return this.todos;
-    }
-    
-    addTodoFromAPI(todo) {
-        this.todos.unshift(todo);
-        this.saveTodos();
-        this.render();
-    }
-    
-    updateTodoFromAPI(id, updates) {
-        const todo = this.todos.find(t => t.id === id);
-        if (todo) {
-            Object.assign(todo, updates);
-            this.saveTodos();
-            this.render();
+    setLoading(element, loading) {
+        if (loading) {
+            element.classList.add('loading');
+            const button = element.querySelector('button[type="submit"]');
+            if (button) {
+                button.disabled = true;
+            }
+        } else {
+            element.classList.remove('loading');
+            const button = element.querySelector('button[type="submit"]');
+            if (button) {
+                button.disabled = false;
+            }
         }
     }
     
-    deleteTodoFromAPI(id) {
-        this.todos = this.todos.filter(t => t.id !== id);
-        this.saveTodos();
-        this.render();
+    showMessage(message, type = 'info') {
+        // Remove existing messages
+        const existingMessages = document.querySelectorAll('.error-message, .success-message');
+        existingMessages.forEach(msg => msg.remove());
+        
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `${type}-message`;
+        messageDiv.textContent = message;
+        
+        // Insert message at the top of the container
+        const container = document.querySelector('.container');
+        container.insertBefore(messageDiv, container.firstChild);
+        
+        // Auto remove after 5 seconds
+        setTimeout(() => {
+            if (messageDiv.parentNode) {
+                messageDiv.remove();
+            }
+        }, 5000);
     }
 }
 
@@ -295,12 +559,14 @@ document.addEventListener('DOMContentLoaded', () => {
     window.todoApp = new TodoApp();
 });
 
-// Add some keyboard shortcuts
+// Add keyboard shortcuts
 document.addEventListener('keydown', (e) => {
     // Ctrl/Cmd + Enter to add todo
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();
-        todoApp.addTodo();
+        if (todoApp.isAuthenticated) {
+            todoApp.addTodo();
+        }
     }
     
     // Escape to cancel editing
@@ -308,70 +574,3 @@ document.addEventListener('keydown', (e) => {
         todoApp.cancelEdit(todoApp.editingId);
     }
 });
-
-// Add drag and drop functionality (optional enhancement)
-let draggedElement = null;
-
-document.addEventListener('dragstart', (e) => {
-    if (e.target.classList.contains('todo-item')) {
-        draggedElement = e.target;
-        e.target.style.opacity = '0.5';
-    }
-});
-
-document.addEventListener('dragend', (e) => {
-    if (e.target.classList.contains('todo-item')) {
-        e.target.style.opacity = '';
-        draggedElement = null;
-    }
-});
-
-document.addEventListener('dragover', (e) => {
-    e.preventDefault();
-});
-
-document.addEventListener('drop', (e) => {
-    e.preventDefault();
-    if (draggedElement && e.target.classList.contains('todo-item')) {
-        const targetId = e.target.dataset.id;
-        const draggedId = draggedElement.dataset.id;
-        
-        // Reorder todos
-        const draggedTodo = todoApp.todos.find(t => t.id === draggedId);
-        const targetTodo = todoApp.todos.find(t => t.id === targetId);
-        
-        if (draggedTodo && targetTodo) {
-            const draggedIndex = todoApp.todos.indexOf(draggedTodo);
-            const targetIndex = todoApp.todos.indexOf(targetTodo);
-            
-            todoApp.todos.splice(draggedIndex, 1);
-            todoApp.todos.splice(targetIndex, 0, draggedTodo);
-            
-            todoApp.saveTodos();
-            todoApp.render();
-        }
-    }
-});
-
-// Add touch support for mobile devices
-let touchStartY = 0;
-let touchEndY = 0;
-
-document.addEventListener('touchstart', (e) => {
-    touchStartY = e.changedTouches[0].screenY;
-});
-
-document.addEventListener('touchend', (e) => {
-    touchEndY = e.changedTouches[0].screenY;
-    handleSwipe();
-});
-
-function handleSwipe() {
-    const swipeThreshold = 50;
-    const diff = touchStartY - touchEndY;
-    
-    if (Math.abs(diff) > swipeThreshold) {
-        // Swipe detected - could be used for quick actions
-        console.log('Swipe detected:', diff > 0 ? 'up' : 'down');
-    }
-}
