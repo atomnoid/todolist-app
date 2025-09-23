@@ -6,9 +6,9 @@ import {
   updateProfile,
   changePassword,
   deleteAccount,
-  registerValidation,
-  loginValidation
+  guestLogin
 } from '../controllers/authController.js';
+import { registerValidation, loginValidation } from '../middleware/validation.js';
 import { protect } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -16,6 +16,7 @@ const router = express.Router();
 // Public routes
 router.post('/register', registerValidation, register);
 router.post('/login', loginValidation, login);
+router.post('/guest-login', guestLogin);
 
 // Protected routes
 router.get('/profile', protect, getProfile);

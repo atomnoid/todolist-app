@@ -4,8 +4,8 @@
   "type": "module",
   "main": "src/server.js",
   "scripts": {
-    "start": "\"C:\\Program Files\\nodejs\\node.exe\" src/server.js",
-    "dev": "node server.js"
+    "start": "node src/server.js",
+    "dev": "npx nodemon server.js"
   },
   "keywords": [],
   "author": "",
@@ -24,3 +24,4 @@
     "nodemon": "^3.1.10"
   }
 }
+

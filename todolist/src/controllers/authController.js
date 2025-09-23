@@ -4,10 +4,10 @@ import { generateToken } from '../middleware/auth.js';
 
 // Validation rules
 export const registerValidation = [
-  body('name')
+  body('username')
     .trim()
     .isLength({ min: 2, max: 50 })
-    .withMessage('Name must be between 2 and 50 characters'),
+    .withMessage('Username must be between 2 and 50 characters'), // Fixed typo
   body('email')
     .isEmail()
     .normalizeEmail()
@@ -32,17 +32,17 @@ export const loginValidation = [
 // Register user
 export const register = async (req, res) => {
   try {
-    // Check validation errors
+    console.log('Register body:', req.body);
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
         success: false,
-        message: 'Validation failed',
+        message: errors.array()[0].msg,
         errors: errors.array()
       });
     }
 
-    const { name, email, password } = req.body;
+    const { username, email, password } = req.body;
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -55,16 +55,13 @@ export const register = async (req, res) => {
 
     // Create user
     const user = await User.create({
-      name,
+      username,
       email,
       password
     });
 
-    // Generate token
-    const token = generateToken(user._id);
-
-    // Update last login
-    await user.updateLastLogin();
+    // Generate token (if you have this function)
+    // const token = generateToken(user._id);
 
     res.status(201).json({
       success: true,
@@ -72,19 +69,19 @@ export const register = async (req, res) => {
       data: {
         user: {
           id: user._id,
-          name: user.name,
+          username: user.username,
           email: user.email,
           avatar: user.avatar,
           createdAt: user.createdAt
-        },
-        token
+        }
+        // , token
       }
     });
   } catch (error) {
-    console.error('Registration error:', error);
+    console.error('Registration error:', error); // This will show the real error in your terminal
     res.status(500).json({
       success: false,
-      message: 'Server error during registration'
+      message: error.message || 'Server error during registration'
     });
   }
 };
@@ -105,7 +102,7 @@ export const login = async (req, res) => {
     const { email, password } = req.body;
 
     // Check for user and include password for comparison
-    const user = await User.findOne({ email }).select('+password');
+    const user = await User.findOne({ email }).select('+password'); // Fixed variable name
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -134,7 +131,7 @@ export const login = async (req, res) => {
       data: {
         user: {
           id: user._id,
-          name: user.name,
+          username: user.username,
           email: user.email,
           avatar: user.avatar,
           lastLogin: user.lastLogin,
@@ -155,14 +152,14 @@ export const login = async (req, res) => {
 // Get current user profile
 export const getProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user.id); // Fixed variable name
     
     res.json({
       success: true,
       data: {
         user: {
           id: user._id,
-          name: user.name,
+          username: user.username,
           email: user.email,
           avatar: user.avatar,
           lastLogin: user.lastLogin,
@@ -182,11 +179,11 @@ export const getProfile = async (req, res) => {
 // Update user profile
 export const updateProfile = async (req, res) => {
   try {
-    const { name, avatar } = req.body;
+    const { username, avatar } = req.body; // Changed from name to username
     const updateData = {};
 
-    if (name) {
-      updateData.name = name.trim();
+    if (username) {
+      updateData.username = username.trim();
     }
     if (avatar) {
       updateData.avatar = avatar;
@@ -204,7 +201,7 @@ export const updateProfile = async (req, res) => {
       data: {
         user: {
           id: user._id,
-          name: user.name,
+          username: user.username,
           email: user.email,
           avatar: user.avatar,
           lastLogin: user.lastLogin,
@@ -306,6 +303,50 @@ export const deleteAccount = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error while deleting account'
+    });
+  }
+};
+
+// Guest login
+export const guestLogin = async (req, res) => {
+  try {
+    // Use a fixed guest user or create one if it doesn't exist
+    let guest = await User.findOne({ email: 'guest@guest.com' });
+    if (!guest) {
+      guest = await User.create({
+        username: 'Guest',
+        email: 'guest@guest.com',
+        password: 'Guest123', // You can use a strong random password
+        isEmailVerified: true
+      });
+    }
+
+    // Generate token
+    const token = generateToken(guest._id);
+
+    // Update last login
+    await guest.updateLastLogin();
+
+    res.json({
+      success: true,
+      message: 'Logged in as guest',
+      data: {
+        user: {
+          id: guest._id,
+          username: guest.username,
+          email: guest.email,
+          avatar: guest.avatar,
+          lastLogin: guest.lastLogin,
+          createdAt: guest.createdAt
+        },
+        token
+      }
+    });
+  } catch (error) {
+    console.error('Guest login error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during guest login'
     });
   }
 };

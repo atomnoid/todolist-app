@@ -1,13 +1,9 @@
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import path from "path";
 import connectDB from "./src/config/db.js";
 import authRoutes from "./src/routes/authRoutes.js";
 import taskRoutes from "./src/routes/taskRoutes.js";
-
-// Load environment variables
-dotenv.config();
 
 // Connect to MongoDB
 connectDB();
@@ -17,7 +13,7 @@ const __dirname = path.resolve();
 
 // Middleware
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5000',
+  origin: 'http://localhost:5000',
   credentials: true
 }));
 
@@ -43,22 +39,23 @@ app.get('/api/health', (req, res) => {
 // Global error handler
 app.use((err, req, res, next) => {
   console.error('Global error handler:', err);
-  
   res.status(err.status || 500).json({
     success: false,
-    message: err.message || 'Internal Server Error',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+    message: err.message || 'Internal Server Error'
   });
 });
 
 // Serve React app for any non-API routes (must be last)
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+app.use((req, res, next) => {
+  if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.startsWith('/public')) {
+    res.sendFile(path.join(__dirname, "public", "index.html"));
+  } else {
+    next();
+  }
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = 5000;
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 });

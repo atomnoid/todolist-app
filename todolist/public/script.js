@@ -43,6 +43,9 @@ class TodoApp {
         this.taskCount = document.getElementById('taskCount');
         this.filterButtons = document.querySelectorAll('.filter-btn');
         this.clearCompletedBtn = document.getElementById('clearCompleted');
+        
+        // Guest login button
+        this.guestLoginBtn = document.getElementById('guestLoginBtn');
     }
     
     bindEvents() {
@@ -98,6 +101,9 @@ class TodoApp {
                 this.addTodo();
             }
         });
+        
+        // Guest login
+        this.guestLoginBtn.addEventListener('click', () => this.handleGuestLogin());
     }
     
     initializeTheme() {
@@ -164,7 +170,7 @@ class TodoApp {
         this.isAuthenticated = true;
         
         // Update user info
-        this.userName.textContent = this.currentUser.name;
+        this.username.textContent = this.currentUser.username; // CHANGED from 'name' to 'username'
         this.userEmail.textContent = this.currentUser.email;
     }
     
@@ -211,35 +217,35 @@ class TodoApp {
     }
     
     async handleRegister() {
-        const name = this.registerName.value.trim();
+        const username = this.registerName.value.trim(); // CHANGED from 'name' to 'username'
         const email = this.registerEmail.value.trim();
         const password = this.registerPassword.value;
-        
-        console.log('Register attempt:', { name, email, password: password ? '***' : 'empty' });
-        
-        if (!name || !email || !password) {
+
+        console.log('Register attempt:', { username, email, password: password ? '***' : 'empty' });
+
+        if (!username || !email || !password) { // CHANGED from 'name' to 'username'
             this.showMessage('Please fill in all fields', 'error');
             return;
         }
-        
+
         if (password.length < 6) {
             this.showMessage('Password must be at least 6 characters', 'error');
             return;
         }
-        
+
         try {
             this.setLoading(this.registerForm, true);
             console.log('Calling API service register...');
-            const response = await apiService.register({ name, email, password });
+            const response = await apiService.register({ username, email, password }); // CHANGED from 'name' to 'username'
             console.log('Register response:', response);
-            
+
             if (response.success) {
                 this.currentUser = response.data.user;
                 this.isAuthenticated = true;
                 this.showAuthenticatedUI();
                 await this.loadTodos();
                 this.showMessage('Registration successful!', 'success');
-                
+
                 // Clear form
                 this.registerName.value = '';
                 this.registerEmail.value = '';
@@ -551,6 +557,30 @@ class TodoApp {
                 messageDiv.remove();
             }
         }, 5000);
+    }
+    
+    async handleGuestLogin() {
+        try {
+            this.setLoading(this.loginForm, true);
+            const response = await fetch('/api/auth/guest-login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await response.json();
+            if (data.success) {
+                this.currentUser = data.data.user;
+                this.isAuthenticated = true;
+                this.showAuthenticatedUI();
+                await this.loadTodos();
+                this.showMessage('Logged in as guest!', 'success');
+            } else {
+                this.showMessage(data.message || 'Guest login failed', 'error');
+            }
+        } catch (error) {
+            this.showMessage('Guest login failed', 'error');
+        } finally {
+            this.setLoading(this.loginForm, false);
+        }
     }
 }
 
