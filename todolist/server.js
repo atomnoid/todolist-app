@@ -2,9 +2,9 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import path from "path";
-import connectDB from "./config/db.js";
-import authRoutes from "./routes/authRoutes.js";
-import taskRoutes from "./routes/taskRoutes.js";
+import connectDB from "./src/config/db.js";
+import authRoutes from "./src/routes/authRoutes.js";
+import taskRoutes from "./src/routes/taskRoutes.js";
 
 // Load environment variables
 dotenv.config();
@@ -52,7 +52,7 @@ app.use((err, req, res, next) => {
 });
 
 // Serve React app for any non-API routes (must be last)
-app.get('/*', (req, res) => {
+app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 

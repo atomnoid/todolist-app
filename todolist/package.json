@@ -4,9 +4,8 @@
   "type": "module",
   "main": "src/server.js",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "\"C:\\Program Files\\nodejs\\node.exe\" src/server.js",
+    "dev": "node server.js"
   },
   "keywords": [],
   "author": "",
